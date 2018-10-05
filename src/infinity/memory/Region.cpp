@@ -22,6 +22,10 @@ RegionToken* Region::createRegionToken() {
 	return new RegionToken(this, getMemoryRegionType(), getSizeInBytes(), getAddress(), getLocalKey(), getRemoteKey());
 }
 
+RegionToken* Region::createRegionTokenAt(void *location) {
+	return new(location) RegionToken(this, getMemoryRegionType(), getSizeInBytes(), getAddress(), getLocalKey(), getRemoteKey());
+}
+
 RegionToken * Region::createRegionToken(uint64_t offset) {
 	return new RegionToken(this, getMemoryRegionType(), getRemainingSizeInBytes(offset), getAddressWithOffset(offset), getLocalKey(), getRemoteKey());
 }

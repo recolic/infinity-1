@@ -12,10 +12,15 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <cerrno>
+#include <stdint.h>
+#include "../java-wrapper/fuckhust.hpp"
+#if HUST
+#define UINT32_MAX 0xffffffff
+#endif
 
 #include <infinity/core/Configuration.h>
 #include <infinity/utils/Debug.h>
-
+#include <iostream> // todo: remove it
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
 namespace infinity {
@@ -278,6 +283,11 @@ void QueuePair::write(infinity::memory::Buffer* buffer, uint64_t localOffset, in
 
 	INFINITY_DEBUG("[INFINITY][QUEUES][QUEUEPAIR] Write request created (id %lu).\n", workRequest.wr_id);
 
+}
+
+void QueuePair::writeWithImmediate(infinity::memory::Buffer* buffer, infinity::memory::RegionToken* destination, uint32_t immediateValue, infinity::requests::RequestToken *requestToken) {
+	writeWithImmediate(buffer, 0, destination, 0, buffer->getSizeInBytes(), immediateValue, OperationFlags(), requestToken);
+	INFINITY_ASSERT(buffer->getSizeInBytes() <= ((uint64_t) UINT32_MAX), "[INFINITY][QUEUES][QUEUEPAIR] Request must be smaller or equal to UINT_32_MAX bytes. This memory region is larger. Please explicitly indicate the size of the data to transfer.\n");
 }
 
 void QueuePair::writeWithImmediate(infinity::memory::Buffer* buffer, uint64_t localOffset, infinity::memory::RegionToken* destination, uint64_t remoteOffset,
@@ -582,6 +592,15 @@ uint32_t QueuePair::getUserDataSize() {
 
 void* QueuePair::getUserData() {
 	return this->userData;
+}
+
+ibv_qp_state QueuePair::getState() {
+    struct ibv_qp_attr attr;
+    struct ibv_qp_init_attr init_attr;
+    
+    int ret = ibv_query_qp(ibvQueuePair, &attr, IBV_QP_STATE, &init_attr);
+    INFINITY_ASSERT(ret == 0, "[INFINITY][QUEUES][QUEUEPAIR] getState: ibv_query_qp failed.");
+    return attr.qp_state;
 }
 
 } /* namespace queues */

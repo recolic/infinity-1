@@ -12,8 +12,8 @@ PROJECT_NAME = libinfinity
 
 ##################################################
 
-CC 					= g++
-CC_FLAGS 		= -O3 -std=c++0x
+CXX ?= g++
+CXX_FLAGS 		= -O3 -std=c++0x -DINFINITY_ASSERT_ON # -DRDEBUG -DINFINITY_DEBUG_ON -g
 LD_FLAGS		= -linfinity -libverbs
 
 ##################################################
@@ -60,14 +60,14 @@ BUILD_DIRECTORIES	= $(patsubst $(SOURCE_FOLDER)/%,$(BUILD_FOLDER)/%,$(SOURCE_DIR
 
 ##################################################
 
-all: library examples
+all: library java java-test perf
 
 ##################################################
 
 $(BUILD_FOLDER)/%.o: $(SOURCE_FILES) $(HEADER_FILES)
 	mkdir -p $(BUILD_FOLDER)
 	mkdir -p $(BUILD_DIRECTORIES)
-	$(CC) $(CC_FLAGS) -c $(SOURCE_FOLDER)/$*.cpp -I $(SOURCE_FOLDER) -o $(BUILD_FOLDER)/$*.o
+	$(CXX) $(CXX_FLAGS) -c $(SOURCE_FOLDER)/$*.cpp -I $(SOURCE_FOLDER) -fPIC -o $(BUILD_FOLDER)/$*.o
 
 ##################################################
 
@@ -88,7 +88,19 @@ clean:
 
 examples:
 	mkdir -p $(RELEASE_FOLDER)/$(EXAMPLES_FOLDER)
-	$(CC) src/examples/read-write-send.cpp $(CC_FLAGS) $(LD_FLAGS) -I $(RELEASE_FOLDER)/$(INCLUDE_FOLDER) -L $(RELEASE_FOLDER) -o $(RELEASE_FOLDER)/$(EXAMPLES_FOLDER)/read-write-send
-	$(CC) src/examples/send-performance.cpp $(CC_FLAGS) $(LD_FLAGS) -I $(RELEASE_FOLDER)/$(INCLUDE_FOLDER) -L $(RELEASE_FOLDER) -o $(RELEASE_FOLDER)/$(EXAMPLES_FOLDER)/send-performance
+	$(CXX) src/examples/read-write-send.cpp $(CXX_FLAGS) $(LD_FLAGS) -I $(RELEASE_FOLDER)/$(INCLUDE_FOLDER) -L $(RELEASE_FOLDER) -o $(RELEASE_FOLDER)/$(EXAMPLES_FOLDER)/read-write-send
+	$(CXX) src/examples/send-performance.cpp $(CXX_FLAGS) $(LD_FLAGS) -I $(RELEASE_FOLDER)/$(INCLUDE_FOLDER) -L $(RELEASE_FOLDER) -o $(RELEASE_FOLDER)/$(EXAMPLES_FOLDER)/send-performance
 
 ##################################################
+
+java: library
+	$(CXX) src/infinity/java-wrapper/RdmaNative.cc src/infinity/java-wrapper/RdmaImpl.cc $(CXX_FLAGS) -I src/ -I $(JAVA_HOME)/include -I $(JAVA_HOME)/include/linux -shared -fPIC -L $(RELEASE_FOLDER) $(LD_FLAGS) -o $(RELEASE_FOLDER)/libRdmaNative.so
+
+java-test: library
+	$(CXX) src/infinity/java-wrapper/RdmaNative.cc src/infinity/java-wrapper/RdmaImpl.cc src/infinity/java-wrapper/test.cc $(CXX_FLAGS) -I src/ -I $(JAVA_HOME)/include -I $(JAVA_HOME)/include/linux -L $(RELEASE_FOLDER) $(LD_FLAGS) -lrt -o $(RELEASE_FOLDER)/RdmaNativeTest
+
+perf: library
+	$(CXX) src/infinity/java-wrapper/RdmaNative.cc src/infinity/java-wrapper/RdmaImpl.cc src/infinity/java-wrapper/perf.cc $(CXX_FLAGS) -I src/ -I $(JAVA_HOME)/include -I $(JAVA_HOME)/include/linux -L $(RELEASE_FOLDER) $(LD_FLAGS) -lrt -o $(RELEASE_FOLDER)/perf
+
+run-test: java-test
+	bash ./hustTest.sh

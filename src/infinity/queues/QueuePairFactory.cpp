@@ -17,6 +17,8 @@
 #include <infinity/utils/Debug.h>
 #include <infinity/utils/Address.h>
 
+const char * infinity::core::Configuration::DEFAULT_IB_DEVICE = "ib0";
+
 namespace infinity {
 namespace queues {
 
@@ -58,6 +60,10 @@ void QueuePairFactory::bindToPort(uint16_t port) {
 	int32_t enabled = 1;
 	int32_t returnValue = setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled));
 	INFINITY_ASSERT(returnValue == 0, "[INFINITY][QUEUES][FACTORY] Cannot set socket option to reuse address.\n");
+    #ifdef SO_REUSEPORT
+	returnValue = setsockopt(serverSocket, SOL_SOCKET, SO_REUSEPORT, &enabled, sizeof(enabled));
+	INFINITY_ASSERT(returnValue == 0, "[INFINITY][QUEUES][FACTORY] Cannot set socket option to reuse port.\n");
+    #endif
 
 	returnValue = bind(serverSocket, (sockaddr *) &serverAddress, sizeof(sockaddr_in));
 	INFINITY_ASSERT(returnValue == 0, "[INFINITY][QUEUES][FACTORY] Cannot bind to local address and port.\n");
@@ -78,15 +84,32 @@ QueuePair * QueuePairFactory::acceptIncomingConnection(void *userData, uint32_t 
 
 	serializedQueuePair *receiveBuffer = (serializedQueuePair*) calloc(1, sizeof(serializedQueuePair));
 	serializedQueuePair *sendBuffer = (serializedQueuePair*) calloc(1, sizeof(serializedQueuePair));
+    sockaddr_storage cliAddr;
+    socklen_t cliAddrLen;
 
-	int connectionSocket = accept(this->serverSocket, (sockaddr *) NULL, NULL);
-	INFINITY_ASSERT(connectionSocket >= 0, "[INFINITY][QUEUES][FACTORY] Cannot open connection socket.\n");
+	int connectionSocket = accept(this->serverSocket, (sockaddr *)&cliAddr, &cliAddrLen);
+	INFINITY_ASSERT(connectionSocket >= 0, "[INFINITY][QUEUES][FACTORY] Cannot open connection socket(ret %d errno %d serversock %d).\n", connectionSocket, errno, this->serverSocket);
 
 	int32_t returnValue = recv(connectionSocket, receiveBuffer, sizeof(serializedQueuePair), 0);
 	INFINITY_ASSERT(returnValue == sizeof(serializedQueuePair), "[INFINITY][QUEUES][FACTORY] Incorrect number of bytes received. Expected %lu. Received %d.\n",
 			sizeof(serializedQueuePair), returnValue);
 
 	QueuePair *queuePair = new QueuePair(this->context);
+
+    { // recolic: peer addr
+        char cliIpStr[INET6_ADDRSTRLEN];
+        // deal with both IPv4 and IPv6:
+        if (cliAddr.ss_family == AF_INET) {
+            struct sockaddr_in *s = (struct sockaddr_in *)&cliAddr;
+            int port = ntohs(s->sin_port);
+            inet_ntop(AF_INET, &s->sin_addr, cliIpStr, sizeof cliIpStr);
+        } else { // AF_INET6
+            struct sockaddr_in6 *s = (struct sockaddr_in6 *)&cliAddr;
+            int port = ntohs(s->sin6_port);
+            inet_ntop(AF_INET6, &s->sin6_addr, cliIpStr, sizeof cliIpStr);
+        }
+        queuePair->peerAddr = cliIpStr;
+    }
 
 	sendBuffer->localDeviceId = queuePair->getLocalDeviceId();
 	sendBuffer->queuePairNumber = queuePair->getQueuePairNumber();

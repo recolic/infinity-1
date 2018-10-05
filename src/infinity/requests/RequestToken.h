@@ -9,7 +9,12 @@
 #ifndef REQUESTS_REQUESTTOKEN_H_
 #define REQUESTS_REQUESTTOKEN_H_
 
+#if __GNUC__ <= 4
+#include <cstdatomic>
+#else
 #include <atomic>
+#endif
+
 #include <stdint.h>
 
 #include <infinity/core/Context.h>
